@@ -10,6 +10,8 @@ output:
 
 I want to demonstrate how to identify outliers and high leverage and influential data points. I will be using `Advertisement Revenue` dataset from website http://www.stat.tamu.edu/~sheather/book/data_sets.php.
 
+Plot the data using `boxplot`.
+
 ```{r, echo=T, message=F, warning=F}
 library(dplyr)
 library(ggplot2)
@@ -19,7 +21,7 @@ library(ggrepel)
 library(knitr)    # Report display, table format
 library(kableExtra)
 
-AdRevDf <- read.csv("D:\\CUNY\\621\\Week04\\AdRevenue.csv", header= TRUE, stringsAsFactors = F)
+AdRevDf <- read.csv("https://raw.githubusercontent.com/akulapa/Data621-Week04-Discussion/master/AdRevenue.csv", header= TRUE, stringsAsFactors = F)
 AdRevDf$XY <- paste0("(",round(AdRevDf$Circulation,2), " ,", round(AdRevDf$AdRevenue,2),")")
 
 p1 <- ggplot(data = AdRevDf, aes(x = "", y = Circulation)) + geom_boxplot() + labs(title="Boxplot: Circulation",x="") + coord_flip()
@@ -84,7 +86,7 @@ eq <- substitute(italic(hat(y)) == xx + yy %.% italic(x)*","~~italic(r)^2~"="~r2
 
 withoutOLeq <- as.character(as.expression(eq))
 
-p3 <- ggplot(data=AdRevDf, aes(Circulation,AdRevenue)) + 
+ggplot(data=AdRevDf, aes(Circulation,AdRevenue)) + 
   geom_point(aes(col=Outlier)) + 
   scale_color_manual(values=c("black", "red")) +
   scale_y_continuous(limits=c(-50,900)) +
@@ -95,8 +97,6 @@ p3 <- ggplot(data=AdRevDf, aes(Circulation,AdRevenue)) +
   annotate("text", x = 20, y = 350, label = "(With Outliers)", colour="blue", size = 3) + 
   annotate("text", x = 10, y = 750, label = withoutOLeq, colour="purple", size = 3, parse=T) +
   annotate("text", x = 10, y = 700, label = "(Without Outliers)", colour="purple", size = 3)
-
-p3
 
 ```
 
@@ -152,13 +152,13 @@ AdRevDfHat %>%
 
 - The standard error of $\beta_1$ is almost two times more when `outliers` are removed. Value incresed from `r coef(withOL)[2]` to `r coef(withoutOL)[2]`. Higher value of $\beta_1$ leads to increase in width of confidence interval for $\beta_1$. Cofidence interval is calculated as $\bar x \pm z\times \frac{se}{\sqrt n}$. Where `se` is standard error of `Circulation` ($\beta_1$). 
 
-- With outliers and without outliers, linear model resulted in `p-value` for $H_0: \beta_1 = 0$ less than `0.0001`. We can say with 95% confidence that `AdRevenue` is function `Circulation` and both are related.
+- With and without outliers, linear model resulted in `p-value` for $H_0: \beta_1 = 0$ less than `0.0001`. We can say with 95% confidence that `AdRevenue` is function `Circulation` and both are related.
 
 - In the presence of outliers predicted responses($\beta_0$) and estimated slope coefficient ($\beta_1$) are changing, we can conclude data points are highly influential.
 
 - Based on `leverage` value we can conclude almost all observations that are identified by `boxplot` as `outliers` are high leverage data points.
 
-In summary, data points are not `outliers`, but `highly influential leverage points`.
+In summary, data points are not `outliers`, but `highly influential leverage points`. Data points can be excluded from linear model.
 
 ####References
 
