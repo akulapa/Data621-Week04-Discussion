@@ -1,0 +1,169 @@
+
+---
+title: "Data621-Week04-Discussion"
+author: "Pavan Akula"
+date: "February 21, 2018"
+output:
+  html_document:
+    code_folding: hide
+---
+
+I want to demonstrate how to identify outliers and high leverage and influential data points. I will be using `Advertisement Revenue` dataset from website http://www.stat.tamu.edu/~sheather/book/data_sets.php.
+
+```{r, echo=T, message=F, warning=F}
+library(dplyr)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(ggrepel)
+library(knitr)    # Report display, table format
+library(kableExtra)
+
+AdRevDf <- read.csv("D:\\CUNY\\621\\Week04\\AdRevenue.csv", header= TRUE, stringsAsFactors = F)
+AdRevDf$XY <- paste0("(",round(AdRevDf$Circulation,2), " ,", round(AdRevDf$AdRevenue,2),")")
+
+p1 <- ggplot(data = AdRevDf, aes(x = "", y = Circulation)) + geom_boxplot() + labs(title="Boxplot: Circulation",x="") + coord_flip()
+p2 <-ggplot(data = AdRevDf, aes(x = "", y = AdRevenue)) + geom_boxplot() + labs(title="Boxplot: Advertisement Revenue",x="") + coord_flip()
+
+AdRevDf$BxPOutlierC <- ifelse(AdRevDf$Circulation>(summary(AdRevDf$Circulation)[5]+1.5*IQR(AdRevDf$Circulation)),'Yes','No')
+AdRevDf$BxPOutlierA <- ifelse(AdRevDf$AdRevenue>(summary(AdRevDf$AdRevenue)[5]+1.5*IQR(AdRevDf$AdRevenue)),'Yes','No')
+AdRevDf$Outlier <- ifelse((AdRevDf$BxPOutlierC == 'Yes'|AdRevDf$BxPOutlierA == 'Yes'),'Yes','No')
+
+grid.arrange(p1, p2, nrow=2, newpage = F)
+```
+
+According to `boxplot` any observation that lies outside `lower limit` $(Q1 - 1.5\times IQR)$ and `upper limit` $(Q3 + 1.5\times IQR)$ is considered `outlier`.
+
+####Outliers - Circulation
+
+```{r, echo=T, message=F, warning=F}
+summary(AdRevDf$Circulation)
+
+AdRevDf %>% filter(BxPOutlierC == 'Yes') %>% arrange(desc(Circulation)) %>% select(Magazine, AdRevenue, Circulation) %>% 
+  kable(format="html", caption = "Outliers Based on Circulation") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+
+```
+
+####Outliers - Advertisement Revenue
+
+```{r, echo=T, message=F, warning=F}
+summary(AdRevDf$AdRevenue)
+
+AdRevDf %>% filter(BxPOutlierA == 'Yes') %>% arrange(desc(AdRevenue)) %>% select(Magazine, AdRevenue, Circulation) %>% 
+  kable(format="html", caption = "Outliers Based on Advertisement Revenue") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+
+```
+
+
+####Regression Equation
+
+
+```{r}
+
+AdRevDf1 <- AdRevDf %>% filter(BxPOutlierA == 'No' & BxPOutlierC == 'No')
+
+withOL<-lm(AdRevenue~Circulation, data=AdRevDf)
+withoutOL<-lm(AdRevenue~Circulation, data=AdRevDf1)
+
+
+z <- list(xx = format(coef(withOL)[1], digits = 4),
+          yy = format(coef(withOL)[2], digits = 4),
+          r2 = format(summary(withOL)$r.squared, digits = 3));
+
+eq <- substitute(italic(hat(y)) == xx + yy %.% italic(x)*","~~italic(r)^2~"="~r2,z)
+
+withOLeq <- as.character(as.expression(eq))
+
+z <- list(xx = format(coef(withoutOL)[1], digits = 4),
+          yy = format(coef(withoutOL)[2], digits = 4),
+          r2 = format(summary(withoutOL)$r.squared, digits = 3));
+
+eq <- substitute(italic(hat(y)) == xx + yy %.% italic(x)*","~~italic(r)^2~"="~r2,z)
+
+withoutOLeq <- as.character(as.expression(eq))
+
+p3 <- ggplot(data=AdRevDf, aes(Circulation,AdRevenue)) + 
+  geom_point(aes(col=Outlier)) + 
+  scale_color_manual(values=c("black", "red")) +
+  scale_y_continuous(limits=c(-50,900)) +
+  geom_abline(intercept = coef(withOL)[1], slope = coef(withOL)[2], color="blue") +
+  geom_abline(intercept = coef(withoutOL)[1], slope = coef(withoutOL)[2], color="purple") +
+  geom_text_repel(data=filter(AdRevDf, (BxPOutlierC == 'Yes'|BxPOutlierA == 'Yes')), aes(label=XY), size=3) +
+  annotate("text", x = 20, y = 400, label = withOLeq, colour="blue", size = 3, parse=T) +
+  annotate("text", x = 20, y = 350, label = "(With Outliers)", colour="blue", size = 3) + 
+  annotate("text", x = 10, y = 750, label = withoutOLeq, colour="purple", size = 3, parse=T) +
+  annotate("text", x = 10, y = 700, label = "(Without Outliers)", colour="purple", size = 3)
+
+p3
+
+```
+
+Linear model summary with outliers.
+
+```{r}
+summary(withOL)
+```
+
+Linear model summary without outliers.
+
+```{r}
+summary(withoutOL)
+```
+
+Leverage values
+```{r}
+AdRevDf$Leverage <- hatvalues(withOL)
+
+AdRevDfHat <- AdRevDf %>% arrange(desc(Leverage)) %>% slice(1:10) %>% select(Magazine, XY, Leverage, Outlier)
+
+ggplot(AdRevDfHat, aes(seq_along(Leverage), Leverage)) + geom_col() + geom_text(data=AdRevDfHat, aes(label=round(Leverage,2)), size=3, vjust=0) + labs(x="", y="Leverage", title = "Top 10 Leverage Values")
+
+```
+
+```{r}
+AdRevDfHat %>%  
+  kable(format="html", caption = "Top 10 Leverage Values") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+```
+
+Observations with high leverage. 
+
+If `leverage` value of an observation is greater than three times the mean leverage value ($3\times \frac{p}{n}$),  it is considered as high leverage observation. `p` is number of parameters (intercept $\beta_0$ and slope $\beta_1$) and `n` is number of observations.
+
+Mean leverage value = $\frac{p}{n} = \frac{2}{70} = `r round(2/70,4) `$
+
+Three times mean leverage value = `r 3 * round(2/70,4) `
+
+```{r}
+AdRevDfHat <- AdRevDf %>% filter(Leverage > 3 * round(2/70,4)) %>% select(Magazine, XY, Leverage, Outlier)
+
+AdRevDfHat %>%  
+  kable(format="html", caption = "High Leverage Values") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, position = "left")
+
+```
+
+
+####Analysis
+
+- The $R^2$ value has decreased from `r summary(withOL)$r.squared` to `r summary(withoutOL)$r.squared` when `outliers` are excluded from the model. We can conclude that relationship between `AdRevenue` and `Circulation` is moderately strong in the presence of `outliers`. Without the presence of `outliers` relationship is weak.
+
+- The standard error of $\beta_1$ is almost two times more when `outliers` are removed. Value incresed from `r coef(withOL)[2]` to `r coef(withoutOL)[2]`. Higher value of $\beta_1$ leads to increase in width of confidence interval for $\beta_1$. Cofidence interval is calculated as $\bar x \pm z\times \frac{se}{\sqrt n}$. Where `se` is standard error of `Circulation` ($\beta_1$). 
+
+- With outliers and without outliers, linear model resulted in `p-value` for $H_0: \beta_1 = 0$ less than `0.0001`. We can say with 95% confidence that `AdRevenue` is function `Circulation` and both are related.
+
+- In the presence of outliers predicted responses($\beta_0$) and estimated slope coefficient ($\beta_1$) are changing, we can conclude data points are highly influential.
+
+- Based on `leverage` value we can conclude almost all observations that are identified by `boxplot` as `outliers` are high leverage data points.
+
+In summary, data points are not `outliers`, but `highly influential leverage points`.
+
+####References
+
+- https://onlinecourses.science.psu.edu/stat501/node/337
+- http://www.whatissixsigma.net/box-plot-diagram-to-identify-outliers/
+- https://www.rdocumentation.org/packages/VGAM/versions/1.0-4/topics/hatvalues
+- http://ggplot2.tidyverse.org/reference/fortify.lm.html
+
